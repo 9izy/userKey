@@ -51,7 +51,7 @@ generate_keys() {
         echo ""
 
         while true; do
-            read -s -p "请输入私钥密码（直接回车表示不设置密码）: " key_password < /dev/tty
+			read -s -p "请输入私钥密码（直接回车表示不设置密码）: " key_password </dev/tty
             echo ""
 
             if [ -n "$key_password" ]; then
@@ -120,12 +120,18 @@ generate_keys() {
 configure_ssh() {
     local force_mode="${1:-false}"
     local ssh_service=$(detect_ssh_service)
-
-    if [ ! -f "$KEY_DIR/authorized_keys" ]; then
-    touch "$KEY_DIR/authorized_keys"
-    chmod 600 "$KEY_DIR/authorized_keys"
-    fi
-    
+  
+	if [ ! -w "/etc/ssh/sshd_config" ]; then
+    echo -e "${RED}>>> 无法写入 /etc/ssh/sshd_config${NC}"
+    exit 1
+	fi
+	
+	if [ ! -s "$KEY_DIR/authorized_keys" ]; then
+    echo -e "${RED}>>> 错误：authorized_keys 为空，无法禁用密码登录${NC}"
+    echo -e "${YELLOW}>>> 请先生成或添加公钥${NC}"
+    exit 1
+	fi
+	
     if [ "$EUID" -ne 0 ]; then 
         echo -e "${RED}>>> 错误：需要 root 权限修改 SSH 配置${NC}"
         echo -e "${YELLOW}>>> 请使用 sudo 运行此脚本${NC}"
@@ -183,7 +189,6 @@ configure_ssh() {
         echo ""
         
         echo -e "${YELLOW}>>> 请在另一个终端中测试 SSH 连接${NC}"
-        echo -e "${YELLOW}>>> 测试命令: ssh -i $PRIVATE_KEY $(whoami)@localhost${NC}"
         echo ""
 
         while true; do
@@ -216,6 +221,8 @@ show_keys_only() {
         echo -e "${YELLOW}============================================${NC}"
         cat "$PUBLIC_KEY"
         echo -e "${YELLOW}============================================${NC}"
+		echo -e "${RED}【安全提示】${NC}"
+		echo "请勿在公共场合或共享屏幕时显示私钥内容！"
         echo ""
         return 0
     else
@@ -319,27 +326,9 @@ while [[ $# -gt 0 ]]; do
             ACTION="configure"
             shift
             ;;
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        --interactive)
-            ACTION="interactive"
-            shift
-            ;;
         --force)
             FORCE_MODE=true
             shift
-            ;;
-        "")
-            ACTION="interactive"
-            shift
-            ;;
-        *)
-            echo -e "${RED}错误: 未知选项 '$1'${NC}"
-            echo ""
-            show_help
-            exit 1
             ;;
     esac
 done
